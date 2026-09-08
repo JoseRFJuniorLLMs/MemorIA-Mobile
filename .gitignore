@@ -12,3 +12,9 @@
 *.keystore
 !debug.keystore
 /app/build/
+
+# iOS / Xcode
+ios/DerivedData/
+ios/**/xcuserdata/
+ios/**/*.xcuserstate
+ios/.swiftpm/
