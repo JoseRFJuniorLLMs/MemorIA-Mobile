@@ -35,6 +35,7 @@ com o telemóvel do idoso desligado ou o app fechado.
 - [Stack técnica](#️-stack-técnica)
 - [Arquitetura](#️-arquitetura)
 - [Como compilar e rodar](#️-como-compilar-e-rodar)
+- [Versão iOS](#-versão-ios)
 - [Contrato de API](#-contrato-de-api-referência)
 - [Escopo desta versão](#-escopo-desta-versão)
 - [Contribuir](#-contribuir)
@@ -152,6 +153,14 @@ gradle wrapper --gradle-version 8.9
 Com o backend do MemorIA a correr localmente (`http://localhost:3001`), no app
 (emulador) use **Ajustes › Servidor** → `http://10.0.2.2:3001`.
 O `10.0.2.2` é como o emulador Android alcança o `localhost` da máquina.
+
+##  Versão iOS
+
+O cliente iOS nativo em SwiftUI está em [`ios/`](ios/README.md). Ele usa o
+mesmo contrato REST e backend, com autenticação, agenda de doses, medicamentos,
+histórico/adesão, saúde, WhatsApp/cuidadores, privacidade LGPD e ajustes de
+servidor. Abra [`ios/MemorIA.xcodeproj`](ios/MemorIA.xcodeproj) no Xcode 15+ em
+um Mac e execute em um simulador ou iPhone com iOS 17+.
 
 ---
 

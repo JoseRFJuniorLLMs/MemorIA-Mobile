@@ -14,3 +14,9 @@
 *.jks
 /keystore.properties
 /app/build/
+
+# iOS / Xcode
+ios/DerivedData/
+ios/**/xcuserdata/
+ios/**/*.xcuserstate
+ios/.swiftpm/
