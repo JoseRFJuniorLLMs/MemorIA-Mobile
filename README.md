@@ -201,4 +201,5 @@ e modo offline com sincronização. A arquitetura (`MemoriaRepository` +
 
 **MIT** — ver [LICENSE](LICENSE).
 #   M e m o r I A - I p h o n e  
+ #   M e m o r I A - I p h o n e  
  
