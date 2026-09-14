@@ -14,6 +14,9 @@ import com.memoria.mobile.data.remote.ConsultationPayload
 import com.memoria.mobile.data.remote.ForgotPasswordRequest
 import com.memoria.mobile.data.remote.ResetPasswordRequest
 import com.memoria.mobile.data.remote.VitalSignsPayload
+import com.memoria.mobile.data.remote.VoiceAssistantConfig
+import com.memoria.mobile.data.remote.VoiceAssistantDispatchData
+import com.memoria.mobile.data.remote.VoiceAssistantDispatchRequest
 import com.memoria.mobile.data.remote.SubscribeRequest
 import com.memoria.mobile.data.remote.SubscriptionStatusData
 import com.memoria.mobile.data.remote.SubscriptionStatusRequest
@@ -155,6 +158,38 @@ class MemoriaRepository(
         prefs.setString(KEY_SNOOZE, minutes.coerceIn(1, 180).toString())
     }
 
+    /** Which alert profile the dose channel uses — see `ReminderSound`. */
+    suspend fun reminderSound(): String =
+        prefs.string(KEY_SOUND)?.takeIf { it.isNotBlank() } ?: DEFAULT_SOUND
+
+    suspend fun setReminderSound(id: String) = prefs.setString(KEY_SOUND, id)
+
+    /** Whether the phone itself warns when a medication is running out. */
+    suspend fun lowStockAlertsEnabled(): Boolean =
+        prefs.string(KEY_LOW_STOCK_ALERTS)?.toBooleanStrictOrNull() ?: true
+
+    suspend fun setLowStockAlertsEnabled(enabled: Boolean) =
+        prefs.setString(KEY_LOW_STOCK_ALERTS, enabled.toString())
+
+    /**
+     * `auto` | `confirm` — mirrors the web's "Alerta de Emergência". Local by
+     * design: the WhatsApp escalation itself is the server's job, this only says
+     * whether the phone asks before nudging it along.
+     */
+    suspend fun emergencyAlertMode(): String =
+        prefs.string(KEY_EMERGENCY_MODE)?.takeIf { it == "confirm" } ?: "auto"
+
+    suspend fun setEmergencyAlertMode(mode: String) =
+        prefs.setString(KEY_EMERGENCY_MODE, if (mode == "confirm") "confirm" else "auto")
+
+    /** Palette key from the web's "Tema do Aplicativo" list. */
+    val themePresetFlow: Flow<String?> = prefs.stringFlow(KEY_THEME_PRESET)
+
+    suspend fun themePreset(): String =
+        prefs.string(KEY_THEME_PRESET)?.takeIf { it.isNotBlank() } ?: DEFAULT_THEME_PRESET
+
+    suspend fun setThemePreset(preset: String) = prefs.setString(KEY_THEME_PRESET, preset)
+
     // ---- Auth ----
 
     /**
@@ -244,6 +279,67 @@ class MemoriaRepository(
         envelopeValue(r) { it.user }
     }
 
+    /**
+     * Turns the automated caregiver report on or off and says where it goes.
+     *
+     * This is the switch behind the whole "relatório semanal" feature: with it on,
+     * the server's report job e-mails the caregiver a period summary of doses
+     * taken and missed, the health measurements logged on the phone, and the
+     * consultations coming up. Every argument is optional so one field can be
+     * changed without resending the rest.
+     */
+    suspend fun setReportSettings(
+        enabled: Boolean? = null,
+        frequency: String? = null,
+        contactEmail: String? = null,
+    ): ApiResult<User> = call {
+        val r = api().updateProfile(
+            ProfileUpdateRequest(
+                reportAutoSendEnabled = enabled,
+                reportFrequency = frequency?.takeIf { it == "weekly" || it == "monthly" },
+                // Empty is meaningful: it tells the server to fall back to the
+                // account e-mail, so it must not be collapsed to null here.
+                reportContactEmail = contactEmail?.trim(),
+            )
+        )
+        envelopeValue(r) { it.user }
+    }
+
+    // ---- Assistente de voz (Alexa / Echo Dot) ----
+
+    suspend fun voiceAssistantConfig(): ApiResult<VoiceAssistantConfig> = call {
+        val r = api().voiceAssistantConfig()
+        envelopeValue(r) { it.config }
+    }
+
+    suspend fun setVoiceAssistantConfig(
+        config: VoiceAssistantConfig,
+    ): ApiResult<VoiceAssistantConfig> = call {
+        val r = api().updateVoiceAssistantConfig(config)
+        envelopeValue(r) { it.config }
+    }
+
+    /**
+     * Sends one phrase through the configured assistant so the user can hear the
+     * Echo Dot speak before trusting it with a real dose. `browser-tts` answers
+     * `dispatched = false`, which the screen reports rather than treating as a
+     * failure — there is no speaker for the server to reach in that mode.
+     */
+    suspend fun dispatchVoiceAssistant(
+        message: String,
+        medicationName: String = "",
+        scheduleTime: String = "",
+    ): ApiResult<VoiceAssistantDispatchData> = call {
+        val r = api().dispatchVoiceAssistant(
+            VoiceAssistantDispatchRequest(
+                message = message.trim(),
+                medicationName = medicationName.trim(),
+                scheduleTime = scheduleTime.trim(),
+            )
+        )
+        envelopeValue(r) { it }
+    }
+
     suspend fun me(): ApiResult<User> = call {
         val r = api().me()
         envelopeValue(r) { it.user }
@@ -280,7 +376,12 @@ class MemoriaRepository(
     }.alsoReschedule()
 
     suspend fun deleteMedication(id: String): ApiResult<Unit> = call {
-        simpleResult(api().deleteMedication(id))
+        val result = simpleResult(api().deleteMedication(id))
+        // The phone-side extras (prescriber, pharmacy, treatment length) are keyed
+        // by medication id. Left behind, they would resurface on whatever new
+        // medication the server happened to hand that id to.
+        if (result is ApiResult.Ok) local.deleteMedicationExtras(id)
+        result
     }.alsoReschedule()
 
     // ---- History ----
@@ -415,6 +516,7 @@ class MemoriaRepository(
             local.saveCareContacts(emptyList())
             local.saveConsultations(emptyList())
             local.saveEmergencyContacts(emptyList())
+            local.clearMedicationExtras()
             logout()
         }
         result
@@ -536,7 +638,15 @@ class MemoriaRepository(
 
     private companion object {
         const val KEY_SNOOZE = "reminder_snooze_minutes"
+        const val KEY_SOUND = "reminder_sound"
+        const val KEY_LOW_STOCK_ALERTS = "low_stock_alerts_enabled"
+        const val KEY_EMERGENCY_MODE = "emergency_alert_mode"
+        const val KEY_THEME_PRESET = "theme_preset"
         const val DEFAULT_SNOOZE = 10
+        const val DEFAULT_SOUND = "default"
+
+        /** Same default the web app applies (`settings.themePreset`). */
+        const val DEFAULT_THEME_PRESET = "pastel-azul"
     }
 
     /**

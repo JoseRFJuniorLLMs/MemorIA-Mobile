@@ -72,11 +72,34 @@ data class User(
     val caregivers: List<Caregiver> = emptyList(),
     val subscriptionStatus: String? = null,
     val isPremium: Boolean = false,
+    /**
+     * Automated e-mail report the backend sends to the caregiver, carrying the
+     * medication summary, the health measurements and the upcoming
+     * consultations. Null on a server old enough not to send the block.
+     */
+    val reportSettings: ReportSettings? = null,
     /** ISO instant of the LGPD consent, or null once revoked. */
     val consentDate: String? = null,
     val lastSync: String? = null,
     val createdAt: String? = null,
     val updatedAt: String? = null,
+)
+
+/**
+ * `reportSettings` exactly as `sanitizeUserOutput()` emits it.
+ *
+ * The three writable fields are named differently on the way back up —
+ * `reportAutoSendEnabled` / `reportFrequency` / `reportContactEmail` on
+ * [ProfileUpdateRequest]. That asymmetry is the backend's contract, not a slip.
+ */
+@JsonClass(generateAdapter = true)
+data class ReportSettings(
+    val enabled: Boolean = false,
+    /** weekly | monthly */
+    val frequency: String = "weekly",
+    val contactEmail: String = "",
+    val lastReportSentAt: String? = null,
+    val lastReportPeriodKey: String? = null,
 )
 
 @JsonClass(generateAdapter = true)
@@ -101,6 +124,14 @@ data class ProfileUpdateRequest(
      */
     val healthVitalSigns: List<VitalSignsPayload>? = null,
     val medicalConsultations: List<ConsultationPayload>? = null,
+    /**
+     * Automated report. Null means "leave it as it is", so saving a phone number
+     * can never silently switch the caregiver's weekly e-mail off.
+     */
+    val reportAutoSendEnabled: Boolean? = null,
+    /** weekly | monthly */
+    val reportFrequency: String? = null,
+    val reportContactEmail: String? = null,
 )
 
 // ---- Medications ---------------------------------------------------------
@@ -421,4 +452,43 @@ data class ConsultationPayload(
     val professional: String,
     val location: String = "",
     val notes: String = "",
+)
+
+// ---- Voice assistant (Alexa / Echo Dot) ----------------------------------
+
+/**
+ * `GET/PUT /api/integrations/voice-assistant/config`.
+ *
+ * The webhook is what actually reaches the speaker: the MemorIA server posts the
+ * reminder to it, and whatever sits behind it (an Alexa skill, an IFTTT hook, a
+ * Home Assistant endpoint) speaks it on the Echo Dot. So `webhookUrl` is
+ * mandatory for every provider except `browser-tts`, which speaks locally and
+ * has nothing to post to — the server rejects the save otherwise.
+ */
+@JsonClass(generateAdapter = true)
+data class VoiceAssistantConfig(
+    val enabled: Boolean = false,
+    /** alexa | google | webhook | browser-tts */
+    val provider: String = "alexa",
+    val deviceName: String = "",
+    val webhookUrl: String = "",
+)
+
+@JsonClass(generateAdapter = true)
+data class VoiceAssistantConfigData(
+    val config: VoiceAssistantConfig? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class VoiceAssistantDispatchRequest(
+    val message: String = "",
+    val medicationName: String = "",
+    val scheduleTime: String = "",
+)
+
+@JsonClass(generateAdapter = true)
+data class VoiceAssistantDispatchData(
+    val dispatched: Boolean = false,
+    /** "browser-tts" when the server only prepared the phrase instead of posting it. */
+    val mode: String? = null,
 )
