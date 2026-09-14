@@ -14,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.memoria.mobile.reminders.MemoriaNotifications
 import com.memoria.mobile.ui.common.LoadingBox
 import com.memoria.mobile.ui.common.repository
@@ -26,7 +27,11 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         MemoriaNotifications.ensureChannels(this)
         setContent {
-            MemoriaTheme {
+            // Collected here rather than inside a screen so changing the palette in
+            // Settings repaints the whole app immediately, bottom bar included.
+            val preset by (application as MemoriaApp).graph.repository.themePresetFlow
+                .collectAsStateWithLifecycle(initialValue = null)
+            MemoriaTheme(themePreset = preset) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     AppEntry()
                 }
