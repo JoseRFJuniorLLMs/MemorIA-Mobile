@@ -45,14 +45,37 @@ com o telemóvel do idoso desligado ou o app fechado.
 
 ## ✨ O que o app faz (paridade com o frontend web)
 
-| Recurso | Tela | Endpoint(s) do backend |
+Todas as 16 páginas do frontend web existem aqui como tela nativa, mais quatro que
+só fazem sentido no telemóvel (WhatsApp, privacidade/LGPD, política e recuperação
+de senha).
+
+| Recurso | Tela | Origem dos dados |
 |---|---|---|
-| **Login / Cadastro** (CPF + senha, LGPD) | `LoginScreen`, `RegisterScreen` | `POST /auth/login`, `POST /auth/register` |
-| **Agenda de hoje** + marcar dose (tomei / adiar / não tomei) | `MedicationsScreen` | `GET /medications`, `POST /history` |
-| **CRUD de medicamentos** (nome, dose, frequência, horários, dias, estoque) | `MedicationEditScreen` | `POST/PUT/DELETE /medications` |
+| **Login / Cadastro / Recuperar senha** (CPF + senha, LGPD) | `LoginScreen`, `RegisterScreen`, `ForgotPasswordScreen` | `POST /auth/login`, `/auth/register`, `/auth/forgot-password` |
+| **Início** — doses de hoje, estatísticas, estoque baixo em vermelho | `DashboardScreen` | `GET /medications`, `GET /history` |
+| **Agenda + marcar dose** (tomei / adiar / não tomei) | `MedicationsScreen` | `GET /medications`, `POST /history` |
+| **CRUD de medicamentos** (nome, dose, frequência, horários, dias, estoque, **farmácia fornecedora**, duração, uso contínuo, médico prescritor) | `MedicationEditScreen` | `POST/PUT/DELETE /medications` + DataStore |
+| **Detalhes do medicamento** + adesão individual | `MedicationDetailsScreen` | `GET /medications`, `GET /history` |
+| **Alarme de cada dose** (notificação com 3 respostas, sobrevive a reboot e Doze) | `ReminderScheduler`, `ReminderReceiver` | `AlarmManager` local |
+| **Lembrete de consulta** (1 dia antes e 1 hora antes) | `MyDoctorsScreen` → `ReminderScheduler` | DataStore + `AlarmManager` |
+| **Aviso de estoque a acabar** (no celular, às 9h) | `ReminderScheduler` → `StockAlarm` | `GET /medications` + `AlarmManager` |
+| **Saúde** — sinais vitais, bem-estar, peso/IMC/escala de cuidados | `HealthScreen` | DataStore, espelhado em `PUT /auth/profile` |
 | **Histórico + adesão** (30 dias) | `HistoryScreen` | `GET /history`, `GET /history/adherence` |
+| **Calendário** mensal com estado de cada dia | `CalendarScreen` | `GET /history` |
+| **Relatórios** — adesão, sequências, histórico filtrável, compartilhar, exportar | `ReportsScreen` | `GET /history/adherence` |
+| **Relatório automático por e-mail** (semanal/mensal ao cuidador) | `SettingsScreen` | `PUT /auth/profile` |
+| **Reposição** — previsão de quando comprar cada remédio | `ReplenishmentScreen` | `GET /medications` |
+| **Meus Médicos** — rede de cuidado + consultas marcadas | `MyDoctorsScreen` | DataStore + `PUT /auth/profile` |
+| **Minhas Receitas** — fotos das receitas médicas | `PrescriptionsScreen` | `GET/POST/DELETE /prescriptions` |
+| **Assistente de voz (Alexa / Echo Dot)** | `SettingsScreen` | `GET/PUT /integrations/voice-assistant/config` |
 | **Avisos por WhatsApp** (nº do paciente + cuidadores) | `WhatsAppScreen` | `PUT /auth/profile` |
-| **Ajustes** (perfil, URL do servidor, testar conexão, sair) | `SettingsScreen` | `GET /auth/me`, `GET /health` |
+| **Planos e assinatura** (cartão tokenizado, Pix, boleto) | `PlansScreen` | `POST /payments/subscribe`, `/payments/create-checkout-session` |
+| **Perfil** — dados pessoais e contatos de emergência | `ProfileScreen` | `PUT /auth/profile` |
+| **Configurações** — som do lembrete, soneca, tema, alerta de emergência, servidor | `SettingsScreen` | DataStore + `GET /auth/me` |
+| **Privacidade e LGPD** — consentimento, exportar, apagar conta | `PrivacyScreen`, `PrivacyPolicyScreen` | `PUT /auth/consent`, `GET /auth/export-data`, `DELETE /auth/account` |
+| **Otimização do app** — bateria, alarmes exatos, tela bloqueada | `OptimizationGuideScreen` | — |
+| **Ajuda e tutorial** | `HelpScreen` | — |
+| **Painel do proprietário** (só admin) | `AdminScreen` | `GET /admin/owner-stats` |
 
 **Acessibilidade** é requisito, não enfeite: tipografia maior, alvos de toque
 generosos e Material 3 com bom contraste — o público-alvo são pessoas idosas.
@@ -177,14 +200,33 @@ lista completa de endpoints e DTOs.
 
 ## 📌 Escopo desta versão
 
-**Incluído:** autenticação, medicamentos (agenda + CRUD + marcação de dose),
-histórico/adesão, configuração de WhatsApp (paciente + cuidadores), ajustes de
-servidor.
+**Incluído:** tudo o que a tabela acima lista — paridade de telas com o frontend
+web, incluindo pagamento/assinatura, receitas, assistente de voz e painel admin.
 
-**Fora do escopo v1** (existem no web, podem entrar depois):
-pagamento/assinatura, receitas (*prescriptions*), assistente de voz, painel admin
-e modo offline com sincronização. A arquitetura (`MemoriaRepository` +
-`ApiService`) já está pronta para recebê-los.
+**Onde o telemóvel difere do web, de propósito:**
+
+- **O alarme é do sistema, não do navegador.** O web agenda notificações locais
+  pelo Capacitor; aqui é o `AlarmManager` com `setExactAndAllowWhileIdle`, rearmado
+  no arranque, na troca de hora e a cada alteração de medicamento. Um lembrete de
+  dose que escorrega meia hora não serve.
+- **O som do lembrete são três canais, não uma preferência.** O Android congela o
+  som e a importância de um canal no momento em que ele é criado, então "Padrão /
+  Suave / Alto" escolhe entre canais em vez de editar um. Ver `ReminderSound`.
+- **A consulta avisa antes, não na hora.** O web notifica no horário da consulta,
+  que já é tarde para sair de casa; aqui há dois avisos — um dia antes e uma hora
+  antes.
+- **Alguns campos do medicamento vivem só no telefone.** `duração do tratamento`,
+  `uso contínuo`, `médico prescritor` e `farmácia dispensadora` não têm coluna no
+  backend (o `pickMedicationPayload()` descarta-os), exatamente como no web vivem
+  no `localStorage`. Ficam no DataStore, em `MedicationExtras`.
+  O `supplier` (Fornecedor / Farmácia, Premium) **é** coluna do servidor e viaja
+  com o medicamento — é esse contacto que o servidor avisa por WhatsApp quando o
+  estoque fica crítico.
+- **Exportar e apagar dados vivem em "Privacidade e dados"**, não em
+  Configurações, que é onde a LGPD espera encontrá-los. Configurações liga para lá.
+- **Modo offline com sincronização** continua fora do escopo: as telas leem o
+  servidor a cada abertura. Os registos que o backend não guarda (saúde, rede de
+  cuidado, consultas) já funcionam offline porque o telefone é a fonte deles.
 
 ---
 
@@ -200,6 +242,3 @@ e modo offline com sincronização. A arquitetura (`MemoriaRepository` +
 ## 📄 Licença
 
 **MIT** — ver [LICENSE](LICENSE).
-#   M e m o r I A - I p h o n e  
- #   M e m o r I A - I p h o n e  
- 
