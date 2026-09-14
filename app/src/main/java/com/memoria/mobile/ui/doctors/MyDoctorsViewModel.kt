@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.memoria.mobile.data.MemoriaRepository
 import com.memoria.mobile.data.local.CareContact
 import com.memoria.mobile.data.local.MedicalConsultation
+import com.memoria.mobile.reminders.ReminderScheduler
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -43,7 +44,10 @@ data class MyDoctorsUiState(
     val editingConsultationId: String? = null,
 )
 
-class MyDoctorsViewModel(private val repo: MemoriaRepository) : ViewModel() {
+class MyDoctorsViewModel(
+    private val repo: MemoriaRepository,
+    private val scheduler: ReminderScheduler,
+) : ViewModel() {
 
     private val _state = MutableStateFlow(MyDoctorsUiState())
     val state: StateFlow<MyDoctorsUiState> = _state.asStateFlow()
@@ -203,6 +207,10 @@ class MyDoctorsViewModel(private val repo: MemoriaRepository) : ViewModel() {
      * so the next save repairs whatever a dropped request missed.
      */
     private suspend fun pushConsultations(items: List<MedicalConsultation>) {
+        // Arm the phone's own alarms FIRST. The reminder is what the user asked
+        // for when they entered the appointment, and it must not depend on the
+        // network call below succeeding.
+        scheduler.scheduleConsultations(items)
         repo.syncHealthRecords(
             vitalSigns = repo.local.vitalSigns().map {
                 com.memoria.mobile.data.remote.VitalSignsPayload(

@@ -19,6 +19,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
@@ -28,6 +29,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -168,6 +170,78 @@ fun MedicationEditScreen(
                 value = state.instructions,
                 onValueChange = vm::onInstructions,
                 label = { Text("Instruções (opcional)") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            // ---- Fornecedor / Farmácia (Premium) ----
+            // Esta é a "farmácia de preferência": é para ESTE contacto que o
+            // servidor manda o WhatsApp quando o stock fica crítico.
+            HorizontalDivider()
+            Text("Fornecedor / Farmácia (Premium)", style = MaterialTheme.typography.labelLarge)
+            Text(
+                if (state.isPremium) {
+                    "Avisaremos esta farmácia pelo WhatsApp caso o estoque acabe."
+                } else {
+                    "No Premium, avisamos a sua farmácia pelo WhatsApp quando o estoque acabar."
+                },
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedTextField(
+                value = state.supplierName,
+                onValueChange = vm::onSupplierName,
+                label = { Text("Nome da farmácia") },
+                placeholder = { Text("Ex.: Farmácia Central") },
+                singleLine = true,
+                enabled = state.isPremium,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = state.supplierPhone,
+                onValueChange = vm::onSupplierPhone,
+                label = { Text("WhatsApp da farmácia") },
+                placeholder = { Text("Ex.: 11999999999") },
+                singleLine = true,
+                enabled = state.isPremium,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            // ---- Tratamento e receita ----
+            HorizontalDivider()
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text(
+                    "Remédio de uso contínuo",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(checked = state.continuousUse, onCheckedChange = vm::onContinuousUse)
+            }
+            if (!state.continuousUse) {
+                OutlinedTextField(
+                    value = state.treatmentDurationDays,
+                    onValueChange = vm::onTreatmentDurationDays,
+                    label = { Text("Duração do tratamento (dias)") },
+                    placeholder = { Text("Ex.: 7") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            OutlinedTextField(
+                value = state.prescribingDoctor,
+                onValueChange = vm::onPrescribingDoctor,
+                label = { Text("Médico prescritor") },
+                placeholder = { Text("Ex.: Dr. João Silva — Cardiologista") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = state.dispensingPharmacy,
+                onValueChange = vm::onDispensingPharmacy,
+                label = { Text("Farmácia dispensadora") },
+                placeholder = { Text("Ex.: Farmácia Central — Rua das Flores") },
+                singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
 

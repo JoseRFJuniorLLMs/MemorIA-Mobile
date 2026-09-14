@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -21,6 +23,7 @@ import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Medication
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material3.Button
@@ -29,12 +32,15 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,6 +58,7 @@ import com.memoria.mobile.ui.common.repoViewModel
 import com.memoria.mobile.ui.theme.Amber
 import com.memoria.mobile.ui.theme.GreenOk
 import com.memoria.mobile.ui.theme.RedMiss
+import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 private val DAY_MONTH = DateTimeFormatter.ofPattern("dd/MM")
@@ -63,10 +70,28 @@ fun ReportsScreen(onBack: () -> Unit, onOpenPlans: () -> Unit) {
     val vm = repoViewModel { ReportsViewModel(it) }
     val state by vm.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val snackbar = remember { SnackbarHostState() }
+
+    // Storage Access Framework: the user picks the destination, so the app needs
+    // no storage permission and the file lands somewhere they can find again.
+    val saveExport = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain"),
+    ) { uri ->
+        if (uri != null) vm.writeExportTo(uri, context.contentResolver) else vm.discardExport()
+    }
 
     LaunchedEffect(Unit) { vm.load() }
+    LaunchedEffect(state.exporting) {
+        if (state.exporting) saveExport.launch("memoria-relatorio-${LocalDate.now()}.txt")
+    }
+    LaunchedEffect(state.message) {
+        state.message?.let { snackbar.showSnackbar(it); vm.consumeMessage() }
+    }
 
-    Scaffold(topBar = { BackTopBar("Relatórios", onBack) }) { inner ->
+    Scaffold(
+        topBar = { BackTopBar("Relatórios", onBack) },
+        snackbarHost = { SnackbarHost(snackbar) },
+    ) { inner ->
         when {
             state.loading && state.history.isEmpty() -> LoadingBox(Modifier.padding(inner))
             state.error != null && state.history.isEmpty() ->
@@ -241,6 +266,15 @@ fun ReportsScreen(onBack: () -> Unit, onOpenPlans: () -> Unit) {
                 ) {
                     Icon(Icons.Filled.Share, contentDescription = null)
                     Text("  Compartilhar relatório")
+                }
+                // Premium on the web too; a free account is pointed at the plans.
+                OutlinedButton(
+                    onClick = { if (state.isPremium) vm.requestExport() else onOpenPlans() },
+                    enabled = !state.exporting,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(Icons.Filled.FileDownload, contentDescription = null)
+                    Text(if (state.isPremium) "  Exportar relatório" else "  Exportar relatório — Premium")
                 }
             }
         }

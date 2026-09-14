@@ -1,5 +1,7 @@
 package com.memoria.mobile.ui.reports
 
+import android.content.ContentResolver
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.memoria.mobile.data.ApiResult
@@ -11,7 +13,9 @@ import com.memoria.mobile.ui.common.Schedule
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import kotlin.math.roundToInt
 
@@ -54,6 +58,13 @@ data class ReportsUiState(
     val weeklyTrend: List<DayAdherence> = emptyList(),
     val period: HistoryPeriod = HistoryPeriod.ALL,
     val search: String = "",
+    val message: String? = null,
+    /**
+     * True while the file picker is open. A flag rather than the bytes themselves:
+     * the text is rebuilt from the state when the destination comes back, which
+     * keeps this state comparable without a hand-written equals for a ByteArray.
+     */
+    val exporting: Boolean = false,
 ) {
     val isPremium: Boolean get() = user?.isPremium == true
 
@@ -126,7 +137,37 @@ class ReportsViewModel(private val repo: MemoriaRepository) : ViewModel() {
 
     fun clearError() { _state.value = _state.value.copy(error = null) }
 
-    /** Plain-text report, for the share sheet. */
+    /**
+     * Hands the report text to the screen so it can be written to a file the user
+     * picks, mirroring the web's "Exportar PDF" button — which, despite the label,
+     * also writes plain text (see `exportReportPdf()` in `app.js`). Keeping the
+     * same format means a report exported on either side reads identically.
+     */
+    fun requestExport() { _state.value = _state.value.copy(exporting = true) }
+
+    /** Writes the report to the destination the user picked in the file picker. */
+    fun writeExportTo(destination: Uri, resolver: ContentResolver) {
+        val bytes = shareText().toByteArray()
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                runCatching {
+                    resolver.openOutputStream(destination)?.use { it.write(bytes) }
+                        ?: error("sem acesso de escrita")
+                }.isSuccess
+            }
+            _state.value = _state.value.copy(
+                exporting = false,
+                message = if (ok) "Relatório exportado." else null,
+                error = if (ok) null else "Não foi possível gravar o arquivo escolhido.",
+            )
+        }
+    }
+
+    fun discardExport() { _state.value = _state.value.copy(exporting = false) }
+
+    fun consumeMessage() { _state.value = _state.value.copy(message = null) }
+
+    /** Plain-text report, for the share sheet and for the exported file. */
     fun shareText(): String {
         val s = _state.value
         val lines = mutableListOf(
