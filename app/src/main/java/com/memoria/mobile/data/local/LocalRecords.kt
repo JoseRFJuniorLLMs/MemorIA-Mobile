@@ -81,3 +81,32 @@ data class EmergencyContactRecord(
     val phone: String = "",
     val email: String = "",
 )
+
+/**
+ * The medication fields the web form collects but the backend has no column for
+ * — treatment length, continuous use, prescriber and dispensing pharmacy. On the
+ * web they live in `localStorage`; here they live in DataStore, keyed by the
+ * server's medication id.
+ *
+ * Kept apart from [com.memoria.mobile.data.remote.Medication] on purpose: sending
+ * them in `MedicationRequest` would be silently dropped by
+ * `pickMedicationPayload()`, which would look like a save that worked.
+ *
+ * `supplier`, by contrast, IS a server column and travels with the medication —
+ * it is what the backend messages when the stock runs critical.
+ */
+@JsonClass(generateAdapter = true)
+data class MedicationExtras(
+    val medicationId: String,
+    /** Days the treatment is meant to last; null for an open-ended one. */
+    val treatmentDurationDays: Int? = null,
+    val continuousUse: Boolean = false,
+    val prescribingDoctor: String = "",
+    val dispensingPharmacy: String = "",
+) {
+    val isEmpty: Boolean
+        get() = treatmentDurationDays == null &&
+            !continuousUse &&
+            prescribingDoctor.isBlank() &&
+            dispensingPharmacy.isBlank()
+}

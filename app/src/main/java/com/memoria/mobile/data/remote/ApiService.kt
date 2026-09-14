@@ -79,6 +79,20 @@ interface ApiService {
     @DELETE("prescriptions/{id}")
     suspend fun deletePrescription(@Path("id") id: String): Response<SimpleResponse>
 
+    // Integrações — assistente de voz (Alexa / Echo Dot)
+    @GET("integrations/voice-assistant/config")
+    suspend fun voiceAssistantConfig(): Response<Envelope<VoiceAssistantConfigData>>
+
+    @PUT("integrations/voice-assistant/config")
+    suspend fun updateVoiceAssistantConfig(
+        @Body body: VoiceAssistantConfig,
+    ): Response<Envelope<VoiceAssistantConfigData>>
+
+    @POST("integrations/voice-assistant/dispatch")
+    suspend fun dispatchVoiceAssistant(
+        @Body body: VoiceAssistantDispatchRequest,
+    ): Response<Envelope<VoiceAssistantDispatchData>>
+
     // Payments
     @GET("payments/config")
     suspend fun paymentConfig(): Response<Envelope<PaymentConfig>>

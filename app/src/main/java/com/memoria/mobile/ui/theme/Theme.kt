@@ -9,23 +9,26 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-private val LightColors = lightColorScheme(
-    primary = Teal,
+private fun lightColorsFor(preset: ThemePreset) = lightColorScheme(
+    // The accent is darkened for text and icon use: the pastel tones are chosen
+    // to be gentle as a fill, and at their raw value they fail contrast against
+    // white on the small labels this app leans on.
+    primary = preset.dark,
     onPrimary = androidx.compose.ui.graphics.Color.White,
-    primaryContainer = TealLight,
-    onPrimaryContainer = TealDark,
-    secondary = Amber,
+    primaryContainer = preset.light,
+    onPrimaryContainer = preset.dark,
+    secondary = preset.secondary,
     background = SurfaceLight,
     surface = androidx.compose.ui.graphics.Color.White,
     error = RedMiss,
 )
 
-private val DarkColors = darkColorScheme(
-    primary = TealLight,
-    onPrimary = TealDark,
-    primaryContainer = TealDark,
-    onPrimaryContainer = TealLight,
-    secondary = Amber,
+private fun darkColorsFor(preset: ThemePreset) = darkColorScheme(
+    primary = preset.primary,
+    onPrimary = preset.dark,
+    primaryContainer = preset.dark,
+    onPrimaryContainer = preset.light,
+    secondary = preset.secondary,
     background = SurfaceDark,
     error = RedMiss,
 )
@@ -38,13 +41,20 @@ private val AppTypography = Typography(
     labelLarge = Typography().labelLarge.copy(fontSize = 16.sp, fontWeight = FontWeight.SemiBold),
 )
 
+/**
+ * [themePreset] is the palette id stored by Settings; an unknown one falls back
+ * to the web app's default rather than throwing, so a preference written by a
+ * newer build never bricks an older one.
+ */
 @Composable
 fun MemoriaTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    themePreset: String? = null,
     content: @Composable () -> Unit,
 ) {
+    val preset = ThemePreset.from(themePreset)
     MaterialTheme(
-        colorScheme = if (darkTheme) DarkColors else LightColors,
+        colorScheme = if (darkTheme) darkColorsFor(preset) else lightColorsFor(preset),
         typography = AppTypography,
         content = content,
     )

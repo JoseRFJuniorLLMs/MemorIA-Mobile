@@ -9,10 +9,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Medication
+import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -113,10 +115,35 @@ fun MedicationDetailsScreen(
                 }
 
                 med.supplier?.takeIf { it.name.isNotBlank() || it.phone.isNotBlank() }?.let { supplier ->
-                    SectionCard("Fornecedor / Farmácia") {
+                    SectionCard(
+                        "Fornecedor / Farmácia",
+                        subtitle = "Avisada pelo WhatsApp quando o estoque acabar.",
+                        icon = Icons.Filled.Storefront,
+                    ) {
                         Column {
                             if (supplier.name.isNotBlank()) DetailRow("Nome", supplier.name)
                             if (supplier.phone.isNotBlank()) DetailRow("Contato", supplier.phone)
+                        }
+                    }
+                }
+
+                // Tratamento e receita — campos guardados só neste telefone.
+                state.extras?.takeIf { !it.isEmpty }?.let { extras ->
+                    SectionCard("Tratamento e Receita", icon = Icons.AutoMirrored.Filled.Assignment) {
+                        Column {
+                            if (extras.continuousUse) {
+                                DetailRow("Duração", "Uso contínuo")
+                            } else {
+                                extras.treatmentDurationDays?.let {
+                                    DetailRow("Duração do tratamento", "$it dia(s)")
+                                }
+                            }
+                            if (extras.prescribingDoctor.isNotBlank()) {
+                                DetailRow("Médico prescritor", extras.prescribingDoctor)
+                            }
+                            if (extras.dispensingPharmacy.isNotBlank()) {
+                                DetailRow("Farmácia dispensadora", extras.dispensingPharmacy)
+                            }
                         }
                     }
                 }

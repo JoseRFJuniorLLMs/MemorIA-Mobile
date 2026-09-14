@@ -43,7 +43,7 @@ import com.memoria.mobile.ui.common.BackTopBar
 import com.memoria.mobile.ui.common.DateTimeField
 import com.memoria.mobile.ui.common.SectionCard
 import com.memoria.mobile.ui.common.formatLocalDateTime
-import com.memoria.mobile.ui.common.repoViewModel
+import com.memoria.mobile.ui.common.systemViewModel
 import com.memoria.mobile.ui.theme.RedMiss
 
 /**
@@ -54,7 +54,7 @@ import com.memoria.mobile.ui.theme.RedMiss
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MyDoctorsScreen(onBack: () -> Unit) {
-    val vm = repoViewModel { MyDoctorsViewModel(it) }
+    val vm = systemViewModel { repo, _, scheduler -> MyDoctorsViewModel(repo, scheduler) }
     val state by vm.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
 
@@ -202,7 +202,11 @@ fun MyDoctorsScreen(onBack: () -> Unit) {
                 }
             }
 
-            SectionCard("Consultas Salvas", icon = Icons.Filled.EventAvailable) {
+            SectionCard(
+                "Consultas Salvas",
+                subtitle = "Avisamos no seu celular um dia antes e uma hora antes de cada consulta.",
+                icon = Icons.Filled.EventAvailable,
+            ) {
                 if (state.consultations.isEmpty()) {
                     Text(
                         "Nenhuma consulta agendada.",

@@ -65,6 +65,38 @@ class LocalStore(private val prefs: PreferencesStore) {
     suspend fun saveEmergencyContacts(items: List<EmergencyContactRecord>) =
         write(EMERGENCY_CONTACTS, EmergencyContactRecord::class.java, items)
 
+    suspend fun medicationExtras(): List<MedicationExtras> =
+        read(MEDICATION_EXTRAS, MedicationExtras::class.java)
+
+    suspend fun medicationExtrasFor(medicationId: String): MedicationExtras? =
+        medicationExtras().firstOrNull { it.medicationId == medicationId }
+
+    /**
+     * Upserts one medication's extras, dropping the entry entirely when every
+     * field is blank — otherwise clearing the form would leave an empty record
+     * behind that still counts as "has extras" on the details screen.
+     */
+    suspend fun saveMedicationExtras(extras: MedicationExtras) {
+        val others = medicationExtras().filterNot { it.medicationId == extras.medicationId }
+        write(
+            MEDICATION_EXTRAS,
+            MedicationExtras::class.java,
+            if (extras.isEmpty) others else others + extras,
+        )
+    }
+
+    /** Called when a medication is deleted, so its extras do not outlive it. */
+    suspend fun deleteMedicationExtras(medicationId: String) {
+        write(
+            MEDICATION_EXTRAS,
+            MedicationExtras::class.java,
+            medicationExtras().filterNot { it.medicationId == medicationId },
+        )
+    }
+
+    suspend fun clearMedicationExtras() =
+        write(MEDICATION_EXTRAS, MedicationExtras::class.java, emptyList())
+
     private companion object {
         const val VITAL_SIGNS = "health_vital_signs"
         const val WELLBEING = "health_wellbeing"
@@ -72,6 +104,7 @@ class LocalStore(private val prefs: PreferencesStore) {
         const val CARE_CONTACTS = "care_network_contacts"
         const val CONSULTATIONS = "medical_consultations"
         const val EMERGENCY_CONTACTS = "emergency_contacts"
+        const val MEDICATION_EXTRAS = "medication_extras"
 
         /** Bounded exactly like the web app's `slice(0, 50)`. */
         const val MAX_HEALTH_RECORDS = 50

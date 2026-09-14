@@ -27,9 +27,22 @@ import java.time.format.DateTimeFormatter
 class ReminderReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        val dose = DoseAlarm.readFrom(intent) ?: return
         val app = context.applicationContext as? MemoriaApp ?: return
 
+        // Consultation and stock alarms carry no DoseAlarm, so they are handled
+        // before the dose extras are demanded.
+        when (intent.action) {
+            ACTION_CONSULTATION -> {
+                ConsultationAlarm.readFrom(intent)?.let { fireConsultation(context, it) }
+                return
+            }
+            ACTION_STOCK -> {
+                StockAlarm.readFrom(intent)?.let { fireStock(context, it) }
+                return
+            }
+        }
+
+        val dose = DoseAlarm.readFrom(intent) ?: return
         when (intent.action) {
             ACTION_FIRE -> fire(context, app, dose)
             ACTION_TAKEN -> answer(context, app, dose, status = "taken")
@@ -38,11 +51,49 @@ class ReminderReceiver : BroadcastReceiver() {
         }
     }
 
+    /**
+     * Posts the consultation reminder. Nothing is written anywhere: consultations
+     * are phone-side records and the reminder is purely informational, so there is
+     * no network work to keep the receiver alive for.
+     */
+    private fun fireConsultation(context: Context, alarm: ConsultationAlarm) {
+        MemoriaNotifications.ensureChannels(context)
+        if (!MemoriaNotifications.canPost(context)) {
+            Log.w(TAG, "Sem permissão de notificação; consulta de ${alarm.professional} não mostrada")
+            return
+        }
+        NotificationManagerCompat.from(context).notify(
+            alarm.requestCode,
+            MemoriaNotifications.buildConsultationNotification(
+                context = context,
+                professional = alarm.professional,
+                whenLabel = alarm.whenLabel,
+                location = alarm.location,
+                requestCode = alarm.requestCode,
+            ),
+        )
+    }
+
+    private fun fireStock(context: Context, alarm: StockAlarm) {
+        MemoriaNotifications.ensureChannels(context)
+        if (!MemoriaNotifications.canPost(context)) {
+            Log.w(TAG, "Sem permissão de notificação; estoque de ${alarm.medicationName} não avisado")
+            return
+        }
+        NotificationManagerCompat.from(context).notify(
+            alarm.requestCode,
+            MemoriaNotifications.buildLowStockNotification(context, alarm),
+        )
+    }
+
     private fun fire(context: Context, app: MemoriaApp, dose: DoseAlarm) {
         MemoriaNotifications.ensureChannels(context)
         if (MemoriaNotifications.canPost(context)) {
             NotificationManagerCompat.from(context)
-                .notify(dose.requestCode, MemoriaNotifications.buildDoseNotification(context, dose))
+                .notify(
+                    dose.requestCode,
+                    MemoriaNotifications.buildDoseNotification(context, dose, dose.sound),
+                )
         } else {
             Log.w(TAG, "Sem permissão de notificação; lembrete de ${dose.medicationName} não mostrado")
         }
@@ -109,8 +160,20 @@ class ReminderReceiver : BroadcastReceiver() {
         const val ACTION_TAKEN = "com.memoria.mobile.REMINDER_TAKEN"
         const val ACTION_MISSED = "com.memoria.mobile.REMINDER_MISSED"
         const val ACTION_SNOOZE = "com.memoria.mobile.REMINDER_SNOOZE"
+        const val ACTION_CONSULTATION = "com.memoria.mobile.CONSULTATION_FIRE"
+        const val ACTION_STOCK = "com.memoria.mobile.STOCK_FIRE"
 
         fun intentFor(context: Context, action: String, dose: DoseAlarm): Intent =
             dose.writeTo(Intent(context, ReminderReceiver::class.java).setAction(action))
+
+        fun consultationIntent(context: Context, alarm: ConsultationAlarm): Intent =
+            alarm.writeTo(
+                Intent(context, ReminderReceiver::class.java).setAction(ACTION_CONSULTATION)
+            )
+
+        fun stockIntent(context: Context, alarm: StockAlarm): Intent =
+            alarm.writeTo(
+                Intent(context, ReminderReceiver::class.java).setAction(ACTION_STOCK)
+            )
     }
 }

@@ -246,6 +246,8 @@ private fun MainFlow(onLogout: () -> Unit) {
                 SettingsScreen(
                     contentPadding = padding,
                     onLoggedOut = onLogout,
+                    onOpenPlans = { nav.navigate(Routes.PLANS) },
+                    onOpenPrivacy = { nav.navigate(Routes.PRIVACY) },
                     onBack = back,
                 )
             }

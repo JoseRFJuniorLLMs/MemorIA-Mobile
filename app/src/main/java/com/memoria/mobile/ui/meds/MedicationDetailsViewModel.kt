@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.memoria.mobile.data.ApiResult
 import com.memoria.mobile.data.MemoriaRepository
+import com.memoria.mobile.data.local.MedicationExtras
 import com.memoria.mobile.data.remote.HistoryEntry
 import com.memoria.mobile.data.remote.Medication
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,6 +18,8 @@ data class MedicationDetailsUiState(
     val error: String? = null,
     val medication: Medication? = null,
     val history: List<HistoryEntry> = emptyList(),
+    /** Phone-side fields the backend has no column for; null when none were filled. */
+    val extras: MedicationExtras? = null,
     val deleted: Boolean = false,
 ) {
     val total: Int get() = history.size
@@ -56,6 +59,7 @@ class MedicationDetailsViewModel(
                         loading = false,
                         medication = med,
                         history = history,
+                        extras = repo.local.medicationExtrasFor(medicationId),
                     )
                 }
                 is ApiResult.Err -> _state.value = _state.value.copy(loading = false, error = r.message)

@@ -17,19 +17,21 @@ import com.memoria.mobile.MainActivity
 import com.memoria.mobile.R
 
 /**
- * The notification channel and the reminder notification itself.
+ * The notification channels and the notifications themselves — doses,
+ * consultations and low stock.
  *
- * The channel is IMPORTANCE_HIGH with sound and vibration on purpose: this is a
- * medication alert for an elderly user, so it has to break through — a silent
- * entry in the drawer is a missed dose. Android will not let the app raise a
- * channel's importance after creation, so the id carries a version suffix; a
- * future change to the channel means a new id, not an edit that silently does
- * nothing.
+ * The dose channels are IMPORTANCE_HIGH with sound and vibration on purpose:
+ * this is a medication alert for an elderly user, so it has to break through — a
+ * silent entry in the drawer is a missed dose. Android will not let the app
+ * change a channel's sound or importance after creation, so every channel id
+ * carries a version suffix and the user's sound choice selects between channels
+ * ([ReminderSound]); a future change means a new id, not an edit that silently
+ * does nothing.
  */
 object MemoriaNotifications {
 
-    const val CHANNEL_DOSES = "memoria_doses_v1"
     const val CHANNEL_CONSULTATIONS = "memoria_consultas_v1"
+    const val CHANNEL_STOCK = "memoria_estoque_v1"
 
     fun ensureChannels(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -41,16 +43,25 @@ object MemoriaNotifications {
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
             .build()
 
-        val doses = NotificationChannel(
-            CHANNEL_DOSES,
-            "Lembretes de medicamento",
-            NotificationManager.IMPORTANCE_HIGH,
-        ).apply {
-            description = "Avisa na hora de tomar cada remédio."
-            enableVibration(true)
-            vibrationPattern = longArrayOf(0, 400, 250, 400)
-            setSound(sound, audio)
-            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+        // One channel per sound profile: a channel's sound and importance cannot
+        // be changed after creation, so "Som do lembrete" switches channels
+        // rather than editing one. All three are created up front so the Android
+        // notification settings show every option the app can use.
+        ReminderSound.entries.forEach { profile ->
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    profile.channelId,
+                    "Lembretes de medicamento — ${profile.label}",
+                    profile.importance,
+                ).apply {
+                    description = profile.description
+                    val pattern = profile.vibrationPattern
+                    enableVibration(pattern != null)
+                    if (pattern != null) vibrationPattern = pattern
+                    setSound(profile.soundUri, profile.audioAttributes)
+                    lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                }
+            )
         }
 
         val consultations = NotificationChannel(
@@ -63,8 +74,18 @@ object MemoriaNotifications {
             lockscreenVisibility = Notification.VISIBILITY_PUBLIC
         }
 
-        manager.createNotificationChannel(doses)
+        val stock = NotificationChannel(
+            CHANNEL_STOCK,
+            "Estoque de medicamentos",
+            NotificationManager.IMPORTANCE_DEFAULT,
+        ).apply {
+            description = "Avisa quando um remédio está a acabar."
+            setSound(sound, audio)
+            lockscreenVisibility = Notification.VISIBILITY_PRIVATE
+        }
+
         manager.createNotificationChannel(consultations)
+        manager.createNotificationChannel(stock)
     }
 
     /** False on Android 13+ until the user grants the runtime permission. */
@@ -83,7 +104,11 @@ object MemoriaNotifications {
      * Builds the dose reminder, with the same three answers the app itself
      * offers so the user never has to open it to record a dose.
      */
-    fun buildDoseNotification(context: Context, dose: DoseAlarm): Notification {
+    fun buildDoseNotification(
+        context: Context,
+        dose: DoseAlarm,
+        sound: ReminderSound = ReminderSound.PADRAO,
+    ): Notification {
         val open = PendingIntent.getActivity(
             context,
             dose.requestCode,
@@ -92,12 +117,21 @@ object MemoriaNotifications {
             pendingFlags(),
         )
 
-        return NotificationCompat.Builder(context, CHANNEL_DOSES)
+        return NotificationCompat.Builder(context, sound.channelId)
             .setSmallIcon(R.drawable.ic_stat_memoria)
             .setContentTitle("Hora do remédio: ${dose.medicationName}")
             .setContentText(doseBody(dose))
             .setStyle(NotificationCompat.BigTextStyle().bigText(doseBody(dose)))
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            // Pre-O phones have no channels, so the profile has to be applied to
+            // the notification itself for the setting to mean anything there.
+            .setPriority(
+                if (sound == ReminderSound.SUAVE) NotificationCompat.PRIORITY_DEFAULT
+                else NotificationCompat.PRIORITY_HIGH,
+            )
+            .setSound(sound.soundUri)
+            .also { builder ->
+                sound.vibrationPattern?.let { builder.setVibrate(it) }
+            }
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setAutoCancel(true)
@@ -143,6 +177,36 @@ object MemoriaNotifications {
             .setContentTitle("Consulta: $professional")
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setAutoCancel(true)
+            .setContentIntent(open)
+            .build()
+    }
+
+    /**
+     * "This medicine is running out" — the phone-side half of the stock alert.
+     *
+     * The server already messages the caregiver (and the preferred pharmacy) over
+     * WhatsApp when the stock goes critical; this is what the patient themselves
+     * sees, so buying more does not depend on someone else reading a message.
+     */
+    fun buildLowStockNotification(context: Context, alarm: StockAlarm): Notification {
+        val open = PendingIntent.getActivity(
+            context,
+            alarm.requestCode,
+            Intent(context, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            pendingFlags(),
+        )
+        return NotificationCompat.Builder(context, CHANNEL_STOCK)
+            .setSmallIcon(R.drawable.ic_stat_memoria)
+            .setContentTitle(
+                if (alarm.stock <= 0) "Acabou: ${alarm.medicationName}"
+                else "Está a acabar: ${alarm.medicationName}",
+            )
+            .setContentText(alarm.body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(alarm.body))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setAutoCancel(true)

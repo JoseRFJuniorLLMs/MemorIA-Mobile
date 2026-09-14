@@ -8,6 +8,8 @@ import android.os.Build
 import android.util.Log
 import com.memoria.mobile.data.ApiResult
 import com.memoria.mobile.data.MemoriaRepository
+import com.memoria.mobile.data.local.MedicalConsultation
+import com.memoria.mobile.data.local.MedicationExtras
 import com.memoria.mobile.data.remote.HistoryEntry
 import com.memoria.mobile.data.remote.Medication
 import com.memoria.mobile.ui.common.Schedule
@@ -16,6 +18,7 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlin.math.floor
 
 /**
  * Arms the OS alarms that make the app a reminder rather than a logbook.
@@ -47,9 +50,20 @@ class ReminderScheduler(
             cancelAll()
             return
         }
+        // Consultations live only on the phone, so they are re-armed even when the
+        // medication request fails — an offline moment must not silently drop the
+        // reminder for tomorrow's appointment.
+        scheduleConsultations(repository.local.consultations())
+
         val medications = (repository.medications() as? ApiResult.Ok)?.value ?: return
         val history = (repository.history(limit = 200) as? ApiResult.Ok)?.value.orEmpty()
-        scheduleFrom(medications.filter { it.active }, history, repository.snoozeMinutes())
+        val active = medications.filter { it.active }
+        scheduleFrom(active, history, repository.snoozeMinutes(), repository.reminderSound())
+        scheduleStockAlerts(
+            medications = active,
+            enabled = repository.lowStockAlertsEnabled(),
+            extras = repository.local.medicationExtras(),
+        )
     }
 
     /** Same as [reschedule] but from data the caller already has in hand. */
@@ -57,6 +71,7 @@ class ReminderScheduler(
         medications: List<Medication>,
         history: List<HistoryEntry>,
         snooze: Int = DEFAULT_SNOOZE_MINUTES,
+        soundId: String = ReminderSound.PADRAO.id,
     ) {
         val manager = alarmManager ?: return
         val now = LocalDateTime.now()
@@ -82,6 +97,7 @@ class ReminderScheduler(
                     time = slot.time,
                     date = date.toString(),
                     snoozeMinutes = snooze,
+                    soundId = soundId,
                 )
                 if (alarms.size >= MAX_ALARMS) break
             }
@@ -91,6 +107,124 @@ class ReminderScheduler(
         alarms.forEach { arm(manager, it) }
         remember(alarms)
         Log.i(TAG, "Armados ${alarms.size} lembretes até $horizon")
+    }
+
+    /**
+     * Arms the reminders for every future consultation inside the window.
+     *
+     * Two per consultation (a day before, an hour before) — see
+     * [ConsultationAlarm.Lead] for why "at the appointment time", which is what
+     * the web does, is not useful on its own.
+     */
+    fun scheduleConsultations(consultations: List<MedicalConsultation>) {
+        val manager = alarmManager ?: return
+        val now = LocalDateTime.now()
+        val horizon = now.plusHours(CONSULTATION_WINDOW_HOURS)
+
+        cancelTrackedConsultations()
+
+        val alarms = consultations.asSequence()
+            .filter { it.dateTime.isNotBlank() && it.professional.isNotBlank() }
+            .flatMap { consultation ->
+                ConsultationAlarm.Lead.entries.asSequence().map { lead ->
+                    ConsultationAlarm(
+                        consultationId = consultation.id,
+                        professional = consultation.professional,
+                        location = consultation.location,
+                        dateTime = consultation.dateTime,
+                        lead = lead,
+                    )
+                }
+            }
+            .filter { alarm ->
+                val at = alarm.firesAt ?: return@filter false
+                at.isAfter(now) && !at.isAfter(horizon)
+            }
+            .take(MAX_CONSULTATION_ALARMS)
+            .toList()
+
+        alarms.forEach { alarm ->
+            val at = alarm.triggerAtMillis ?: return@forEach
+            setExact(
+                manager,
+                at,
+                PendingIntent.getBroadcast(
+                    context,
+                    alarm.requestCode,
+                    ReminderReceiver.consultationIntent(context, alarm),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                ),
+            )
+        }
+        rememberConsultations(alarms)
+        Log.i(TAG, "Armados ${alarms.size} lembretes de consulta até $horizon")
+    }
+
+    /**
+     * Arms one "running out" reminder per medication whose stock will not last,
+     * at the next [STOCK_ALERT_HOUR].
+     *
+     * Only one alarm per medication is armed (never a stream of them) so a chronic
+     * low stock cannot turn into a notification the user learns to swipe away.
+     * The threshold matches the backend's own low-stock rule, so the phone and the
+     * caregiver's WhatsApp talk about the same medicines.
+     */
+    fun scheduleStockAlerts(
+        medications: List<Medication>,
+        enabled: Boolean,
+        extras: List<MedicationExtras> = emptyList(),
+    ) {
+        val manager = alarmManager ?: return
+        cancelTrackedStock()
+        if (!enabled) {
+            prefs().edit().remove(KEY_ARMED_STOCK).apply()
+            return
+        }
+
+        val now = LocalDateTime.now()
+        val at = now.toLocalDate().atTime(STOCK_ALERT_HOUR, 0).let {
+            if (it.isAfter(now)) it else it.plusDays(1)
+        }
+        val date = at.toLocalDate().toString()
+
+        val alarms = medications.mapNotNull { med ->
+            val id = med.id ?: return@mapNotNull null
+            val stock = med.stock.coerceAtLeast(0)
+            val daily = Schedule.estimatedDailyDoses(med)
+            val days = if (daily > 0) floor(stock / daily).toInt() else -1
+            val low = stock <= 0 ||
+                stock <= LOW_STOCK_UNITS ||
+                (days in 0..LOW_STOCK_DAYS)
+            if (!low) return@mapNotNull null
+            StockAlarm(
+                medicationId = id,
+                medicationName = med.name,
+                stock = stock,
+                daysRemaining = days,
+                // The Premium supplier is what the server actually messages; the
+                // locally noted dispensing pharmacy is the fallback so the text is
+                // still useful for a free account.
+                pharmacy = med.supplier?.name?.takeIf { it.isNotBlank() }
+                    ?: extras.firstOrNull { it.medicationId == id }?.dispensingPharmacy.orEmpty(),
+                date = date,
+            )
+        }.take(MAX_STOCK_ALARMS)
+
+        val millis = at.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        alarms.forEach { alarm ->
+            setExact(
+                manager,
+                millis,
+                PendingIntent.getBroadcast(
+                    context,
+                    alarm.requestCode,
+                    ReminderReceiver.stockIntent(context, alarm),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                ),
+            )
+        }
+        rememberStock(alarms)
+        Log.i(TAG, "Armados ${alarms.size} avisos de estoque para $at")
     }
 
     /** Re-arms a single dose a few minutes out, for the "Adiar" action. */
@@ -120,7 +254,13 @@ class ReminderScheduler(
 
     fun cancelAll() {
         cancelTracked()
-        prefs().edit().remove(KEY_ARMED).apply()
+        cancelTrackedConsultations()
+        cancelTrackedStock()
+        prefs().edit()
+            .remove(KEY_ARMED)
+            .remove(KEY_ARMED_CONSULTATIONS)
+            .remove(KEY_ARMED_STOCK)
+            .apply()
     }
 
     /**
@@ -203,6 +343,72 @@ class ReminderScheduler(
         }
     }
 
+    private fun rememberConsultations(alarms: List<ConsultationAlarm>) {
+        val encoded = alarms.joinToString("\n") {
+            listOf(it.consultationId, it.professional, it.location, it.dateTime, it.lead.name)
+                .joinToString(FIELD_SEPARATOR)
+        }
+        prefs().edit().putString(KEY_ARMED_CONSULTATIONS, encoded).apply()
+    }
+
+    private fun cancelTrackedConsultations() {
+        val manager = alarmManager ?: return
+        val encoded = prefs().getString(KEY_ARMED_CONSULTATIONS, null) ?: return
+        encoded.lineSequence().filter { it.isNotBlank() }.forEach { line ->
+            val parts = line.split(FIELD_SEPARATOR)
+            if (parts.size < 5) return@forEach
+            val alarm = ConsultationAlarm(
+                consultationId = parts[0],
+                professional = parts[1],
+                location = parts[2],
+                dateTime = parts[3],
+                lead = ConsultationAlarm.Lead.entries.firstOrNull { it.name == parts[4] }
+                    ?: return@forEach,
+            )
+            manager.cancel(
+                PendingIntent.getBroadcast(
+                    context,
+                    alarm.requestCode,
+                    ReminderReceiver.consultationIntent(context, alarm),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
+            )
+        }
+    }
+
+    private fun rememberStock(alarms: List<StockAlarm>) {
+        val encoded = alarms.joinToString("\n") {
+            listOf(it.medicationId, it.medicationName, it.stock.toString(), it.date)
+                .joinToString(FIELD_SEPARATOR)
+        }
+        prefs().edit().putString(KEY_ARMED_STOCK, encoded).apply()
+    }
+
+    private fun cancelTrackedStock() {
+        val manager = alarmManager ?: return
+        val encoded = prefs().getString(KEY_ARMED_STOCK, null) ?: return
+        encoded.lineSequence().filter { it.isNotBlank() }.forEach { line ->
+            val parts = line.split(FIELD_SEPARATOR)
+            if (parts.size < 4) return@forEach
+            val alarm = StockAlarm(
+                medicationId = parts[0],
+                medicationName = parts[1],
+                stock = parts[2].toIntOrNull() ?: 0,
+                daysRemaining = -1,
+                pharmacy = "",
+                date = parts[3],
+            )
+            manager.cancel(
+                PendingIntent.getBroadcast(
+                    context,
+                    alarm.requestCode,
+                    ReminderReceiver.stockIntent(context, alarm),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
+            )
+        }
+    }
+
     private fun prefs() = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     private fun parseTime(raw: String): LocalTime =
@@ -212,6 +418,8 @@ class ReminderScheduler(
         private const val TAG = "MemoriaReminders"
         private const val PREFS = "memoria_reminders"
         private const val KEY_ARMED = "armed_alarms"
+        private const val KEY_ARMED_CONSULTATIONS = "armed_consultation_alarms"
+        private const val KEY_ARMED_STOCK = "armed_stock_alarms"
 
         /** Unit separator: cannot occur in a name, dosage, time or date. */
         private val FIELD_SEPARATOR = Char(0x1F).toString()
@@ -221,6 +429,26 @@ class ReminderScheduler(
 
         /** Ceiling so a large regimen cannot exhaust the system alarm table. */
         const val MAX_ALARMS = 60
+
+        /**
+         * Consultations are armed further out than doses because they are entered
+         * once, weeks ahead — a 48-hour window would never reach the day-before
+         * reminder for an appointment booked next month.
+         */
+        const val CONSULTATION_WINDOW_HOURS = 24L * 60
+        const val MAX_CONSULTATION_ALARMS = 40
+
+        /** Hour of day the stock warning arrives — late enough not to wake anyone. */
+        const val STOCK_ALERT_HOUR = 9
+        const val MAX_STOCK_ALARMS = 20
+
+        /**
+         * Same thresholds the backend's WhatsApp reminder service uses for a low
+         * stock, so the phone and the caregiver's message never disagree about
+         * which medicine is running out.
+         */
+        const val LOW_STOCK_UNITS = 5
+        const val LOW_STOCK_DAYS = 3
 
         const val DEFAULT_SNOOZE_MINUTES = 10
 

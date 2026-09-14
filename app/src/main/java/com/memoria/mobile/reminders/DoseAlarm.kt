@@ -24,6 +24,13 @@ data class DoseAlarm(
     /** Local date the dose belongs to, ISO `yyyy-MM-dd`. */
     val date: String,
     val snoozeMinutes: Int,
+    /**
+     * [ReminderSound] id, captured when the alarm is armed rather than read when
+     * it fires. The receiver must post the notification before touching anything
+     * that can block, and the sound choice changing mid-window re-arms the whole
+     * window anyway.
+     */
+    val soundId: String = ReminderSound.PADRAO.id,
 ) {
     /**
      * Stable per medication+slot so re-arming the window replaces alarms instead
@@ -60,7 +67,10 @@ data class DoseAlarm(
         putExtra(EXTRA_TIME, time)
         putExtra(EXTRA_DATE, date)
         putExtra(EXTRA_SNOOZE, snoozeMinutes)
+        putExtra(EXTRA_SOUND, soundId)
     }
+
+    val sound: ReminderSound get() = ReminderSound.from(soundId)
 
     companion object {
         private const val EXTRA_MED_ID = "med_id"
@@ -70,6 +80,7 @@ data class DoseAlarm(
         private const val EXTRA_TIME = "time"
         private const val EXTRA_DATE = "date"
         private const val EXTRA_SNOOZE = "snooze"
+        private const val EXTRA_SOUND = "sound"
 
         /** Null when the Intent is missing the parts a reminder cannot do without. */
         fun readFrom(intent: Intent): DoseAlarm? {
@@ -84,6 +95,7 @@ data class DoseAlarm(
                 time = time,
                 date = date,
                 snoozeMinutes = intent.getIntExtra(EXTRA_SNOOZE, 10),
+                soundId = intent.getStringExtra(EXTRA_SOUND) ?: ReminderSound.PADRAO.id,
             )
         }
     }
