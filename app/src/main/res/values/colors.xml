@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#0B7285</color>
+    <!--
+      Amostrado do próprio assets/icone.jpeg. É a cor que o lançador mostra sob a
+      máscara e no efeito de paralaxe do ícone adaptativo: se não for igual à do
+      desenho, aparece uma emenda na borda.
+    -->
+    <color name="ic_launcher_background">#0063FC</color>
 </resources>
