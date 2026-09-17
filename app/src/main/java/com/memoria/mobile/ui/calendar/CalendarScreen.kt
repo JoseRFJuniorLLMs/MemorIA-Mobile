@@ -42,6 +42,7 @@ import com.memoria.mobile.ui.common.LoadingBox
 import com.memoria.mobile.ui.common.repoViewModel
 import com.memoria.mobile.ui.theme.GreenOk
 import com.memoria.mobile.ui.theme.RedMiss
+import com.memoria.mobile.R
 import com.memoria.mobile.ui.theme.Snooze
 import java.time.LocalDate
 import java.time.format.TextStyle
@@ -58,7 +59,7 @@ fun CalendarScreen(onBack: () -> Unit) {
 
     LaunchedEffect(Unit) { vm.load() }
 
-    Scaffold(topBar = { BackTopBar("Calendário", onBack) }) { inner ->
+    Scaffold(topBar = { BackTopBar("Calendário", onBack, iconRes = R.drawable.ic_menu_calendar) }) { inner ->
         when {
             state.loading && state.medications.isEmpty() -> LoadingBox(Modifier.padding(inner))
             state.error != null && state.medications.isEmpty() ->

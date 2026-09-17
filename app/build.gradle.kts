@@ -28,8 +28,8 @@ android {
         applicationId = "com.memoria.mobile"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 3
+        versionName = "3.0"
 
         // Default public backend base URL (no trailing slash, WITHOUT /api — the
         // client appends /api, mirroring the web frontend's runtime-config.js).

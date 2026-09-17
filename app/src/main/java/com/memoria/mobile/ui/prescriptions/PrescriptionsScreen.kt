@@ -1,5 +1,7 @@
 package com.memoria.mobile.ui.prescriptions
 
+import com.memoria.mobile.R
+
 import android.graphics.Bitmap
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -90,7 +92,7 @@ fun PrescriptionsScreen(onBack: () -> Unit, onOpenPlans: () -> Unit) {
     }
 
     Scaffold(
-        topBar = { BackTopBar("Minhas Receitas", onBack) },
+        topBar = { BackTopBar("Minhas Receitas", onBack, iconRes = R.drawable.ic_menu_prescriptions) },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { inner ->
         when {

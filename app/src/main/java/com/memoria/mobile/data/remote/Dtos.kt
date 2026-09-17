@@ -72,6 +72,11 @@ data class User(
     val caregivers: List<Caregiver> = emptyList(),
     val subscriptionStatus: String? = null,
     val isPremium: Boolean = false,
+    val isTrialActive: Boolean = false,
+    val trialDaysRemaining: Int? = null,
+    val trialExpired: Boolean = false,
+    val trialEndsAt: String? = null,
+    val firstLoginAt: String? = null,
     /**
      * Automated e-mail report the backend sends to the caregiver, carrying the
      * medication summary, the health measurements and the upcoming

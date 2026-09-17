@@ -1,5 +1,7 @@
 package com.memoria.mobile.ui.doctors
 
+import com.memoria.mobile.R
+
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -67,7 +69,7 @@ fun MyDoctorsScreen(onBack: () -> Unit) {
     }
 
     Scaffold(
-        topBar = { BackTopBar("Meus Médicos", onBack) },
+        topBar = { BackTopBar("Meus Médicos", onBack, iconRes = R.drawable.ic_menu_doctors) },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { inner ->
         Column(

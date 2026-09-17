@@ -26,7 +26,7 @@ enum class ThemePreset(
 ) {
     PADRAO(
         "default", "Padrão (Atual)",
-        primary = Teal, dark = TealDark, light = TealLight, secondary = Amber,
+        primary = BluePrimary, dark = BluePrimaryDark, light = BluePrimaryLight, secondary = BlueSecondary,
     ),
     PASTEL_AZUL(
         "pastel-azul", "Pastel Azul",

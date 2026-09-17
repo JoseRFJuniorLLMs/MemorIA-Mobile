@@ -50,7 +50,7 @@ data class PlansUiState(
     val annualPrice: String
         get() = config?.plans?.annual?.displayPrice ?: "R$ 12,90/mês (plano anual)"
 
-    val trialDays: Int get() = 7
+    val trialDays: Int get() = 15
 
     /** Without it the app cannot tokenise, so the form would be a dead end. */
     val canPay: Boolean get() = !config?.publicKey.isNullOrBlank()

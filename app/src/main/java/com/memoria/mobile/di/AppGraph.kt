@@ -34,5 +34,12 @@ class AppGraph(context: Context) {
         repository.onScheduleChanged = {
             scope.launch { reminderScheduler.reschedule() }
         }
+
+        // A token the server rejects ends the session here, once, for every
+        // endpoint. Clearing the stored token makes `tokenFlow` emit null, which
+        // is what sends the UI back to the login screen — see MemoriaNav.
+        session.onUnauthorized = {
+            scope.launch { repository.expireSession() }
+        }
     }
 }

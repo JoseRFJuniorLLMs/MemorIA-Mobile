@@ -1,9 +1,15 @@
 package com.memoria.mobile.ui.home
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
+import com.memoria.mobile.R
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -11,8 +17,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Snooze
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.AssistChip
@@ -82,7 +91,25 @@ fun DashboardScreen(
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Início") }) },
+        topBar = {
+            TopAppBar(
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.ic_logo_app),
+                            contentDescription = "MemórIA",
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(RoundedCornerShape(8.dp)),
+                        )
+                        Text("MemórIA", fontWeight = FontWeight.Bold)
+                    }
+                },
+            )
+        },
         snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = {
             // Lifted clear of the bottom navigation bar. This Scaffold is nested
@@ -129,9 +156,27 @@ fun DashboardScreen(
 
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    StatTile("${state.todayCount}", "Hoje", Modifier.weight(1f))
-                    StatTile("${state.pendingCount}", "Pendentes", Modifier.weight(1f), accent = Amber)
-                    StatTile("${state.completedCount}", "Tomados", Modifier.weight(1f), accent = GreenOk)
+                    StatTile(
+                        value = "${state.todayCount}",
+                        label = "Hoje",
+                        icon = Icons.Filled.CalendarToday,
+                        accent = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    StatTile(
+                        value = "${state.pendingCount}",
+                        label = "Pendentes",
+                        icon = Icons.Filled.Schedule,
+                        accent = Amber,
+                        modifier = Modifier.weight(1f),
+                    )
+                    StatTile(
+                        value = "${state.completedCount}",
+                        label = "Tomados",
+                        icon = Icons.Filled.CheckCircle,
+                        accent = GreenOk,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
             }
 

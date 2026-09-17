@@ -42,6 +42,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.memoria.mobile.R
+import com.memoria.mobile.ui.common.BackTopBar
 import com.memoria.mobile.ui.common.repoViewModel
 
 private val frequencies = listOf(
@@ -68,13 +70,10 @@ fun MedicationEditScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(if (state.isNew) "Novo medicamento" else "Editar medicamento") },
-                navigationIcon = {
-                    IconButton(onClick = onCancel) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
-                    }
-                },
+            BackTopBar(
+                title = if (state.isNew) "Novo Medicamento" else "Editar Medicamento",
+                onBack = onCancel,
+                iconRes = R.drawable.ic_menu_medications,
             )
         },
     ) { padding ->

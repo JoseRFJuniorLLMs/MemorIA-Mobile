@@ -12,8 +12,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import com.memoria.mobile.R
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -25,6 +31,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -51,6 +58,8 @@ fun LoginScreen(
     onLoggedIn: () -> Unit,
     onRegister: () -> Unit,
     onForgotPassword: () -> Unit,
+    /** True when the user was brought here by an expired token, not by logging out. */
+    expiredNotice: Boolean = false,
 ) {
     val vm = repoViewModel { AuthViewModel(it) }
     val state by vm.state.collectAsStateWithLifecycle()
@@ -85,13 +94,22 @@ fun LoginScreen(
         // saved wrong would otherwise be unrecoverable without clearing app data
         // — but a patient reading "Servidor: https://..." on the sign-in screen
         // only learns that something can break.
+        Image(
+            painter = painterResource(R.drawable.ic_logo_app),
+            contentDescription = "MemorIA Logo",
+            modifier = Modifier
+                .size(76.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = { showServer = !showServer },
+                ),
+        )
         Text(
-            "MemorIA 💊",
+            "MemórIA",
             style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.combinedClickable(
-                onClick = {},
-                onLongClick = { showServer = !showServer },
-            ),
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
         )
         Text(
             "Lembretes de medicamentos com aviso ao cuidador pelo WhatsApp.",
@@ -100,6 +118,25 @@ fun LoginScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(8.dp))
+
+        // Says why the user is here. A login screen with no explanation reads as
+        // the app having lost the account, which it has not — only the token, and
+        // the CPF and senha below are already filled in.
+        if (expiredNotice) {
+            Surface(
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    "Sua sessão expirou por segurança. Entre novamente para continuar — " +
+                        "seus medicamentos e horários estão salvos.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.padding(14.dp),
+                )
+            }
+        }
 
         OutlinedTextField(
             value = cpf,

@@ -19,6 +19,20 @@ import java.util.concurrent.TimeUnit
 class SessionState {
     @Volatile
     var token: String? = null
+
+    /**
+     * Fired when the server rejects the token we actually sent — the session is
+     * over and no retry with the same token can succeed.
+     *
+     * This exists because without it an expired token was a dead end: every screen
+     * showed "Token inválido ou expirado." with a "Tentar novamente" button that
+     * re-sent the same dead token and got the same 401 forever. The only escape was
+     * Configurações › Sair, which the elderly users this app is built for will not
+     * find. Tokens last 7 days (`JWT_EXPIRE`), so this is a weekly certainty, not
+     * an edge case.
+     */
+    @Volatile
+    var onUnauthorized: (() -> Unit)? = null
 }
 
 /**
@@ -108,12 +122,26 @@ class ApiProvider(private val session: SessionState) {
     /** `<root>/health` — outside the /api prefix. */
     fun healthUrl(rootUrl: String): String = "${normalizeRoot(rootUrl)}/health"
 
+    /**
+     * Attaches the bearer token and, on the way back, notices when the server
+     * rejected it.
+     *
+     * The 401 is only treated as an expired session when the request actually
+     * CARRIED a token: a 401 from login means wrong CPF or password, and clearing
+     * a session that does not exist yet would bounce the user off their own login
+     * screen. Sitting in the interceptor rather than in each repository method
+     * means no future endpoint can forget to handle it.
+     */
     private fun authInterceptor() = Interceptor { chain ->
         val builder = chain.request().newBuilder()
-        session.token?.takeIf { it.isNotBlank() }?.let {
-            builder.header("Authorization", "Bearer $it")
+        val token = session.token?.takeIf { it.isNotBlank() }
+        token?.let { builder.header("Authorization", "Bearer $it") }
+
+        val response = chain.proceed(builder.build())
+        if (response.code == 401 && token != null) {
+            session.onUnauthorized?.invoke()
         }
-        chain.proceed(builder.build())
+        response
     }
 
     private fun loggingInterceptor(): HttpLoggingInterceptor {

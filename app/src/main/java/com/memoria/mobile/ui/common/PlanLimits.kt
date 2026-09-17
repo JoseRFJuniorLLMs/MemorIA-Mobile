@@ -11,22 +11,33 @@ import com.memoria.mobile.data.remote.User
  */
 object PlanLimits {
 
-    /** Free accounts keep 2 active medications; Premium is unlimited. */
+    /** Contas gratuitas (após o período de teste de 15 dias) guardam 2 medicamentos; Premium/Trial é ilimitado. */
     const val FREE_MEDICATIONS = 2
 
+    fun hasFullAccess(user: User?): Boolean = user?.isPremium == true
+
     fun maxMedications(user: User?): Int =
-        if (user?.isPremium == true) Int.MAX_VALUE else FREE_MEDICATIONS
+        if (hasFullAccess(user)) Int.MAX_VALUE else FREE_MEDICATIONS
 
     fun canAddMedication(user: User?, activeCount: Int): Boolean =
         activeCount < maxMedications(user)
 
-    /** Storing prescription photos is a paid feature, as on the web. */
-    fun canStorePrescriptions(user: User?): Boolean = user?.isPremium == true
+    /** Fotos de receitas liberadas durante o período de 15 dias ou com assinatura paga ativa. */
+    fun canStorePrescriptions(user: User?): Boolean = hasFullAccess(user)
 
-    fun medicationLimitMessage(): String =
-        "O plano gratuito guarda $FREE_MEDICATIONS medicamentos. " +
-            "Ative o Premium para cadastrar quantos precisar."
+    fun medicationLimitMessage(user: User? = null): String =
+        if (user?.trialExpired == true) {
+            "Seu período de teste de 15 dias terminou. O plano gratuito permite $FREE_MEDICATIONS medicamentos. " +
+                "Assine para continuar com acesso total a tudo."
+        } else {
+            "O plano gratuito guarda $FREE_MEDICATIONS medicamentos. " +
+                "Ative o Premium para cadastrar quantos precisar."
+        }
 
-    fun prescriptionLimitMessage(): String =
-        "Guardar fotos de receitas é um recurso do Premium."
+    fun prescriptionLimitMessage(user: User? = null): String =
+        if (user?.trialExpired == true) {
+            "Seu período de teste de 15 dias terminou. Assine o plano para continuar com acesso total a fotos de receitas."
+        } else {
+            "Guardar fotos de receitas é um recurso liberado no período de 15 dias e no plano pago."
+        }
 }

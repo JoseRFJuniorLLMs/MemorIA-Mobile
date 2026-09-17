@@ -13,6 +13,9 @@ data class MoreUiState(
     val userName: String? = null,
     val isAdmin: Boolean = false,
     val isPremium: Boolean = false,
+    val isTrialActive: Boolean = false,
+    val trialDaysRemaining: Int? = null,
+    val trialExpired: Boolean = false,
 )
 
 class MoreViewModel(private val repo: MemoriaRepository) : ViewModel() {
@@ -31,6 +34,9 @@ class MoreViewModel(private val repo: MemoriaRepository) : ViewModel() {
                 userName = user.name,
                 isAdmin = user.isAdmin,
                 isPremium = user.isPremium,
+                isTrialActive = user.isTrialActive,
+                trialDaysRemaining = user.trialDaysRemaining,
+                trialExpired = user.trialExpired,
             )
         }
     }

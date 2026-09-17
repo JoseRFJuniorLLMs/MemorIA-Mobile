@@ -135,6 +135,25 @@ class MemoriaRepository(
      * someone else is the case that wants them gone — [forgetCredentials] does
      * that, and Settings puts it next to the logout button.
      */
+    /**
+     * Ends the session because the SERVER rejected the token, not because the user
+     * asked. Keeps the remembered CPF and password on purpose: a token that
+     * expired after its 7 days is not a reason to make someone retype credentials
+     * they already trusted this phone with — the login screen comes pre-filled and
+     * getting back in is one tap.
+     *
+     * Idempotent: several requests can fail at once when a token dies, and each
+     * one calls this.
+     */
+    suspend fun expireSession() {
+        if (session.token == null && prefs.token() == null) return
+        session.token = null
+        prefs.clearToken()
+        // Cancels every pending alarm: a logged-out phone must not keep buzzing
+        // about medication it can no longer record.
+        onScheduleChanged?.invoke()
+    }
+
     suspend fun logout() {
         session.token = null
         prefs.clearToken()

@@ -1,5 +1,6 @@
 package com.memoria.mobile.ui.reports
 
+import com.memoria.mobile.R
 import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -89,7 +90,7 @@ fun ReportsScreen(onBack: () -> Unit, onOpenPlans: () -> Unit) {
     }
 
     Scaffold(
-        topBar = { BackTopBar("Relatórios", onBack) },
+        topBar = { BackTopBar("Relatórios", onBack, iconRes = R.drawable.ic_menu_reports) },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { inner ->
         when {

@@ -1,7 +1,11 @@
 package com.memoria.mobile.ui.plans
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
+import com.memoria.mobile.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -94,6 +98,19 @@ fun PlansScreen(onBack: () -> Unit) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.ic_menu_plans),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(RoundedCornerShape(20.dp)),
+                )
+            }
+
             if (state.isPremium) {
                 PremiumStatusCard(
                     status = state.subscriptionStatus,

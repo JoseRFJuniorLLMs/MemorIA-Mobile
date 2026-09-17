@@ -13,7 +13,7 @@ private fun lightColorsFor(preset: ThemePreset) = lightColorScheme(
     // The accent is darkened for text and icon use: the pastel tones are chosen
     // to be gentle as a fill, and at their raw value they fail contrast against
     // white on the small labels this app leans on.
-    primary = preset.dark,
+    primary = if (preset == ThemePreset.PADRAO) preset.primary else preset.dark,
     onPrimary = androidx.compose.ui.graphics.Color.White,
     primaryContainer = preset.light,
     onPrimaryContainer = preset.dark,

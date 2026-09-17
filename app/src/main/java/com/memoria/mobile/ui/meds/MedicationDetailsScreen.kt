@@ -1,5 +1,6 @@
 package com.memoria.mobile.ui.meds
 
+import com.memoria.mobile.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -66,7 +67,7 @@ fun MedicationDetailsScreen(
     }
 
     Scaffold(
-        topBar = { BackTopBar("Detalhes do Medicamento", onBack) },
+        topBar = { BackTopBar("Detalhes do Medicamento", onBack, iconRes = R.drawable.ic_menu_medications) },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { inner ->
         val med = state.medication

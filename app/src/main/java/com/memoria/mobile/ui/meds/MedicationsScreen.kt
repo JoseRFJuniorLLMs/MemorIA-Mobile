@@ -1,5 +1,6 @@
 package com.memoria.mobile.ui.meds
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -9,8 +10,13 @@ import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
+import com.memoria.mobile.R
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
@@ -76,7 +82,23 @@ fun MedicationsScreen(
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Meus remédios") }) },
+        topBar = {
+            TopAppBar(
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.ic_menu_medications),
+                            contentDescription = "Medicamentos",
+                            modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)),
+                        )
+                        Text("Medicamentos", fontWeight = FontWeight.Bold)
+                    }
+                },
+            )
+        },
         snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = {
             // Lifted clear of the bottom navigation bar. This Scaffold is nested
@@ -141,7 +163,7 @@ fun MedicationsScreen(
 
                 item {
                     Text(
-                        "Todos os remédios",
+                        "Todos os Medicamentos",
                         style = MaterialTheme.typography.titleLarge,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     )

@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.memoria.mobile.R
 import com.memoria.mobile.ui.common.BackTopBar
 import com.memoria.mobile.ui.common.DetailRow
 import com.memoria.mobile.ui.common.EmptyState
@@ -47,7 +48,7 @@ fun ReplenishmentScreen(onBack: () -> Unit) {
 
     LaunchedEffect(Unit) { vm.load() }
 
-    Scaffold(topBar = { BackTopBar("Reposição", onBack) }) { inner ->
+    Scaffold(topBar = { BackTopBar("Reposição", onBack, iconRes = R.drawable.ic_menu_replenishment) }) { inner ->
         when {
             state.loading && state.items.isEmpty() -> LoadingBox(Modifier.padding(inner))
             state.error != null && state.items.isEmpty() ->

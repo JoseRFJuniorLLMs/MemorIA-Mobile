@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -32,9 +33,25 @@ import androidx.compose.ui.unit.dp
 /** Title + back arrow, for every screen reached from the "Mais" menu. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BackTopBar(title: String, onBack: () -> Unit) {
+fun BackTopBar(title: String, onBack: () -> Unit, iconRes: Int? = null) {
     TopAppBar(
-        title = { Text(title) },
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (iconRes != null) {
+                    androidx.compose.foundation.Image(
+                        painter = androidx.compose.ui.res.painterResource(iconRes),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(RoundedCornerShape(6.dp)),
+                    )
+                }
+                Text(title)
+            }
+        },
         navigationIcon = {
             IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
@@ -114,13 +131,22 @@ fun StatTile(
     label: String,
     modifier: Modifier = Modifier,
     accent: Color = MaterialTheme.colorScheme.primary,
+    icon: ImageVector? = null,
 ) {
     Card(modifier) {
         Column(
             Modifier.padding(vertical = 14.dp, horizontal = 8.dp).fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            if (icon != null) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = accent,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
             Text(
                 value,
                 style = MaterialTheme.typography.headlineSmall,

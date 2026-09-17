@@ -489,7 +489,7 @@ fun SettingsScreen(
             }
 
             Text(
-                "MemorIA Mobile 1.0.0 · não substitui orientação médica.",
+                "MemorIA Mobile 3.0 · não substitui orientação médica.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

@@ -4,11 +4,13 @@ import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Medication
+import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -21,8 +23,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
+import com.memoria.mobile.R
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -60,15 +66,20 @@ import com.memoria.mobile.ui.reports.ReportsScreen
 import com.memoria.mobile.ui.settings.SettingsScreen
 import com.memoria.mobile.ui.whatsapp.WhatsAppScreen
 
-private data class Tab(val route: String, val label: String, val icon: ImageVector)
+private data class Tab(
+    val route: String,
+    val label: String,
+    val icon: ImageVector? = null,
+    val iconRes: Int? = null,
+)
 
 /** The web app's bottom bar: Início, Medicamentos, Saúde, Histórico, Mais. */
 private val tabs = listOf(
-    Tab(Routes.HOME, "Início", Icons.Filled.Home),
-    Tab(Routes.MEDS, "Remédios", Icons.AutoMirrored.Filled.List),
-    Tab(Routes.HEALTH, "Saúde", Icons.Filled.Favorite),
-    Tab(Routes.HISTORY, "Histórico", Icons.Filled.History),
-    Tab(Routes.MORE, "Mais", Icons.Filled.MoreHoriz),
+    Tab(Routes.HOME, "Início", icon = Icons.Filled.Home),
+    Tab(Routes.MEDS, "Med", iconRes = R.drawable.ic_menu_medications),
+    Tab(Routes.HEALTH, "Saúde", icon = Icons.Filled.MonitorHeart),
+    Tab(Routes.HISTORY, "Histórico", icon = Icons.Filled.History),
+    Tab(Routes.MORE, "Mais", icon = Icons.Filled.MoreHoriz),
 )
 
 /**
@@ -79,16 +90,40 @@ private val tabs = listOf(
  */
 @Composable
 fun MemoriaNav(startLoggedIn: Boolean) {
+    val repo = LocalContext.current.repository()
     var loggedIn by remember { mutableStateOf(startLoggedIn) }
+    var sessionExpired by remember { mutableStateOf(false) }
+
+    // When the server rejects the token, the repository clears it and this emits
+    // null — which is what brings the user back to the login screen.
+    //
+    // Without it an expired token was a dead end: every screen showed "Token
+    // inválido ou expirado." with a "Tentar novamente" button that re-sent the
+    // same dead token and got the same 401 forever, and the only way out was
+    // Configurações › Sair. Tokens last 7 days, so this happened weekly.
+    LaunchedEffect(Unit) {
+        repo.tokenFlow.collect { token ->
+            if (token.isNullOrBlank() && loggedIn) {
+                sessionExpired = true
+                loggedIn = false
+            }
+        }
+    }
+
     if (loggedIn) {
         MainFlow(onLogout = { loggedIn = false })
     } else {
-        AuthFlow(onAuthenticated = { loggedIn = true })
+        AuthFlow(
+            onAuthenticated = { sessionExpired = false; loggedIn = true },
+            // Explains the bounce. Landing on a login screen with no reason given
+            // reads as the app having lost the account.
+            expiredNotice = sessionExpired,
+        )
     }
 }
 
 @Composable
-private fun AuthFlow(onAuthenticated: () -> Unit) {
+private fun AuthFlow(onAuthenticated: () -> Unit, expiredNotice: Boolean = false) {
     val nav = rememberNavController()
     NavHost(navController = nav, startDestination = Routes.LOGIN) {
         composable(Routes.LOGIN) {
@@ -96,6 +131,7 @@ private fun AuthFlow(onAuthenticated: () -> Unit) {
                 onLoggedIn = onAuthenticated,
                 onRegister = { nav.navigate(Routes.REGISTER) },
                 onForgotPassword = { nav.navigate(Routes.FORGOT_PASSWORD) },
+                expiredNotice = expiredNotice,
             )
         }
         composable(Routes.FORGOT_PASSWORD) {
@@ -153,7 +189,17 @@ private fun MainFlow(onLogout: () -> Unit) {
                         NavigationBarItem(
                             selected = selected,
                             onClick = { navigateToTab(nav, tab.route) },
-                            icon = { Icon(tab.icon, contentDescription = tab.label) },
+                            icon = {
+                                if (tab.iconRes != null) {
+                                    Image(
+                                        painter = painterResource(tab.iconRes),
+                                        contentDescription = tab.label,
+                                        modifier = Modifier.size(24.dp),
+                                    )
+                                } else if (tab.icon != null) {
+                                    Icon(tab.icon, contentDescription = tab.label)
+                                }
+                            },
                             label = { Text(tab.label) },
                         )
                     }
