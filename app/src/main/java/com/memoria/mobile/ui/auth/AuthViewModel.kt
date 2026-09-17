@@ -17,12 +17,16 @@ data class AuthUiState(
     val checking: Boolean = false,
     val serverMessage: String? = null,
     val serverOk: Boolean? = null,
-    /** CPF + password restored from the encrypted store, once read. */
+    /** CPF + password + name restored from the encrypted store, once read. */
     val savedCpf: String = "",
     val savedPassword: String = "",
+    val savedName: String = "",
     val credentialsRestored: Boolean = false,
     val rememberMe: Boolean = true,
-)
+) {
+    val hasSavedCredentials: Boolean
+        get() = savedCpf.isNotBlank() && savedPassword.isNotBlank()
+}
 
 class AuthViewModel(private val repo: MemoriaRepository) : ViewModel() {
 
@@ -44,6 +48,7 @@ class AuthViewModel(private val repo: MemoriaRepository) : ViewModel() {
             _state.value = _state.value.copy(
                 savedCpf = saved?.cpf.orEmpty(),
                 savedPassword = saved?.password.orEmpty(),
+                savedName = saved?.name.orEmpty(),
                 credentialsRestored = true,
                 rememberMe = remember,
             )
@@ -57,11 +62,30 @@ class AuthViewModel(private val repo: MemoriaRepository) : ViewModel() {
         viewModelScope.launch { repo.credentials.setRememberEnabled(enabled) }
     }
 
+    /** 1-click login for elderly users using Keystore-saved credentials. */
+    fun loginWithSaved(onSuccess: () -> Unit) {
+        val cpf = _state.value.savedCpf
+        val password = _state.value.savedPassword
+        if (cpf.isBlank() || password.isBlank()) {
+            _state.value = _state.value.copy(error = "Nenhuma senha salva encontrada. Digite sua senha.")
+            return
+        }
+        login(cpf, password, onSuccess)
+    }
+
     fun login(cpf: String, password: String, onSuccess: () -> Unit) {
-        if (!validate(cpf, password)) return
+        val cleanCpf = cpf.filter { it.isDigit() }
+        val savedCpfClean = _state.value.savedCpf.filter { it.isDigit() }
+        // If password was empty but we have saved credentials for this CPF, auto-fill it!
+        val effectivePassword = if (password.isBlank() && cleanCpf.isNotBlank() && cleanCpf == savedCpfClean) {
+            _state.value.savedPassword
+        } else {
+            password
+        }
+        if (!validate(cpf, effectivePassword)) return
         _state.value = _state.value.copy(loading = true, error = null, serverMessage = null)
         viewModelScope.launch {
-            when (val r = repo.login(cpf, password)) {
+            when (val r = repo.login(cpf, effectivePassword)) {
                 is ApiResult.Ok -> {
                     _state.value = _state.value.copy(loading = false, error = null)
                     onSuccess()

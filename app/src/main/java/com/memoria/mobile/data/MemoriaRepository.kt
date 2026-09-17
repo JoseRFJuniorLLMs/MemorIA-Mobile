@@ -221,10 +221,19 @@ class MemoriaRepository(
     suspend fun login(cpf: String, password: String): ApiResult<User> {
         val result = authCall { api().login(LoginRequest(cpf = digitsOnly(cpf), password = password)) }
         if (result is ApiResult.Ok && credentials.rememberEnabled()) {
-            credentials.save(cpf, password)
+            credentials.save(cpf, password, name = result.value.name)
         }
         // A new session means a new schedule to arm.
         return result.alsoReschedule()
+    }
+
+    /**
+     * Automatic / 1-click login using Keystore-persisted credentials.
+     * Designed for elderly users so they don't have to re-enter passwords.
+     */
+    suspend fun loginWithSavedCredentials(): ApiResult<User> {
+        val saved = credentials.load() ?: return ApiResult.Err("Nenhuma credencial salva.")
+        return login(saved.cpf, saved.password)
     }
 
     /**
@@ -255,7 +264,7 @@ class MemoriaRepository(
         }
         // A brand-new account benefits most from not having to retype anything.
         if (result is ApiResult.Ok && credentials.rememberEnabled()) {
-            credentials.save(cpf, password)
+            credentials.save(cpf, password, name = name.trim())
         }
         return result.alsoReschedule()
     }

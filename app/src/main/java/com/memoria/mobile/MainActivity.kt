@@ -15,6 +15,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.memoria.mobile.data.ApiResult
 import com.memoria.mobile.reminders.MemoriaNotifications
 import com.memoria.mobile.ui.common.LoadingBox
 import com.memoria.mobile.ui.common.repository
@@ -52,6 +53,16 @@ private fun AppEntry() {
         // the login screen can now repair the server address by itself.
         runCatching { repo.bootstrap() }
         loggedIn = repo.isLoggedIn()
+        // Seamless auto-login for elderly users: if token expired or missing, but
+        // credentials are saved in Keystore, log in automatically in background.
+        if (!loggedIn && repo.credentials.rememberEnabled() && repo.credentials.hasSaved()) {
+            runCatching {
+                val autoResult = repo.loginWithSavedCredentials()
+                if (autoResult is ApiResult.Ok) {
+                    loggedIn = true
+                }
+            }
+        }
         ready = true
     }
 

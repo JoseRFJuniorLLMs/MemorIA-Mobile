@@ -21,6 +21,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import com.memoria.mobile.R
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Login
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -52,6 +55,15 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.memoria.mobile.ui.common.repoViewModel
 
+private fun formatCpfDisplay(cpf: String): String {
+    val d = cpf.filter { it.isDigit() }
+    return if (d.length == 11) {
+        "${d.substring(0, 3)}.${d.substring(3, 6)}.${d.substring(6, 9)}-${d.substring(9, 11)}"
+    } else {
+        cpf
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun LoginScreen(
@@ -68,6 +80,7 @@ fun LoginScreen(
     var password by rememberSaveable { mutableStateOf("") }
     var showServer by rememberSaveable { mutableStateOf(false) }
     var showPassword by rememberSaveable { mutableStateOf(false) }
+    var showManualForm by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { vm.restoreCredentials() }
 
@@ -88,7 +101,7 @@ fun LoginScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(16.dp))
         // Long-pressing the title is the way back to the server field. It has to
         // live on this screen — Settings is behind the login wall, so an address
         // saved wrong would otherwise be unrecoverable without clearing app data
@@ -117,7 +130,7 @@ fun LoginScreen(
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(4.dp))
 
         // Says why the user is here. A login screen with no explanation reads as
         // the app having lost the account, which it has not — only the token, and
@@ -138,85 +151,211 @@ fun LoginScreen(
             }
         }
 
-        OutlinedTextField(
-            value = cpf,
-            onValueChange = { cpf = it },
-            label = { Text("CPF") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Senha") },
-            singleLine = true,
-            visualTransformation = if (showPassword) {
-                VisualTransformation.None
-            } else {
-                PasswordVisualTransformation()
-            },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            trailingIcon = {
-                IconButton(onClick = { showPassword = !showPassword }) {
+        // =========================================================================
+        // MODO 1 CLIQUE PARA IDOSOS ("Clicou, entrou!")
+        // Quando os dados já estão salvos e o usuário não pediu formulário manual
+        // =========================================================================
+        if (state.hasSavedCredentials && !showManualForm) {
+            Surface(
+                color = MaterialTheme.colorScheme.primaryContainer,
+                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     Icon(
-                        if (showPassword) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                        contentDescription = if (showPassword) "Ocultar senha" else "Mostrar senha",
+                        imageVector = Icons.Filled.AccountCircle,
+                        contentDescription = null,
+                        modifier = Modifier.size(54.dp),
+                        tint = MaterialTheme.colorScheme.primary,
                     )
+                    Text(
+                        text = if (state.savedName.isNotBlank()) "Olá, ${state.savedName}!" else "Bem-vindo(a) de volta!",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        textAlign = TextAlign.Center,
+                    )
+                    Text(
+                        text = "CPF: ${formatCpfDisplay(state.savedCpf)}",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Lock,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                        Text(
+                            text = "Senha salva com segurança neste celular",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
+                        )
+                    }
                 }
-            },
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        // Checked by default: the users this app is built for should not have to
-        // retype a password to see today's doses.
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { vm.setRememberMe(!state.rememberMe) },
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Checkbox(
-                checked = state.rememberMe,
-                onCheckedChange = vm::setRememberMe,
-            )
-            Text(
-                "Salvar meu CPF e senha neste celular",
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.weight(1f),
-            )
-        }
-
-        if (state.error != null) {
-            Text(
-                state.error!!,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyLarge,
-            )
-        }
-
-        Button(
-            onClick = { vm.login(cpf, password, onLoggedIn) },
-            enabled = !state.loading,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            if (state.loading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    strokeWidth = 2.dp,
-                )
-            } else {
-                Text("Entrar")
             }
-        }
 
-        TextButton(onClick = onForgotPassword, enabled = !state.loading) {
-            Text("Esqueci minha senha")
-        }
+            if (state.error != null) {
+                Text(
+                    state.error!!,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyLarge,
+                    textAlign = TextAlign.Center,
+                )
+            }
 
-        TextButton(onClick = onRegister, enabled = !state.loading) {
-            Text("Criar conta")
+            // BOTÃO PRINCIPAL GIGANTE: 1 CLIQUE
+            Button(
+                onClick = { vm.loginWithSaved(onLoggedIn) },
+                enabled = !state.loading,
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(64.dp),
+            ) {
+                if (state.loading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(26.dp),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        strokeWidth = 3.dp,
+                    )
+                } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.Login,
+                            contentDescription = null,
+                            modifier = Modifier.size(26.dp),
+                        )
+                        Text(
+                            "ENTRAR NO MEMÓRIA",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
+            }
+
+            TextButton(
+                onClick = { showManualForm = true },
+                enabled = !state.loading,
+            ) {
+                Text("Entrar com outro CPF ou alterar senha", style = MaterialTheme.typography.bodyLarge)
+            }
+
+            TextButton(
+                onClick = onRegister,
+                enabled = !state.loading,
+            ) {
+                Text("Criar uma nova conta", style = MaterialTheme.typography.bodyLarge)
+            }
+        } else {
+            // =========================================================================
+            // FORMULÁRIO COMPLETO MANUAL (Primeiro acesso ou troca de conta)
+            // =========================================================================
+            if (state.hasSavedCredentials && showManualForm) {
+                TextButton(
+                    onClick = { showManualForm = false },
+                    enabled = !state.loading,
+                ) {
+                    Text("← Voltar para entrar com conta salva")
+                }
+            }
+
+            OutlinedTextField(
+                value = cpf,
+                onValueChange = { cpf = it },
+                label = { Text("CPF") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = { Text("Senha") },
+                singleLine = true,
+                visualTransformation = if (showPassword) {
+                    VisualTransformation.None
+                } else {
+                    PasswordVisualTransformation()
+                },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                trailingIcon = {
+                    IconButton(onClick = { showPassword = !showPassword }) {
+                        Icon(
+                            if (showPassword) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                            contentDescription = if (showPassword) "Ocultar senha" else "Mostrar senha",
+                        )
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            // Checked by default: the users this app is built for should not have to
+            // retype a password to see today's doses.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { vm.setRememberMe(!state.rememberMe) },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Checkbox(
+                    checked = state.rememberMe,
+                    onCheckedChange = vm::setRememberMe,
+                )
+                Text(
+                    "Salvar meu CPF e senha neste celular",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+
+            if (state.error != null) {
+                Text(
+                    state.error!!,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
+
+            Button(
+                onClick = { vm.login(cpf, password, onLoggedIn) },
+                enabled = !state.loading,
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+            ) {
+                if (state.loading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Text("Entrar", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            TextButton(onClick = onForgotPassword, enabled = !state.loading) {
+                Text("Esqueci minha senha")
+            }
+
+            TextButton(onClick = onRegister, enabled = !state.loading) {
+                Text("Criar conta")
+            }
         }
 
         if (showServer) {
